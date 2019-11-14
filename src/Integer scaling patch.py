@@ -6,9 +6,19 @@ import re
 import os
 
 
+# List of tuples defining what is to be modified
+# 1 - File we are modifying
+# 2 - Text to be replaced
+# 3 - Text we are replacing it with
+commandList = [
+  ("**/game.compiled.js", ":a=c*2;b=d*2;break;", r":a=Math.floor(Math.min(f/d,b/c));a=a<1?1:a;b=d*a;a=c*a;break;"),
+  ("**/gui.en_US.json", '"Original","Double","Fit","Stretch"', r'"Original","Scaled","Fit","Stretch"'),
+]
 
 
-
+# ======================================================
+# ================== Helper Function(s) ================
+# ======================================================
 def findPath(searchString):
   paths = glob.glob(searchString, recursive=True)
   if (len(paths) > 0):
@@ -18,46 +28,53 @@ def findPath(searchString):
 
 
 
+# ======================================================
+# ================== Begin Execution ===================
+# ======================================================
+commandsAttempted = 0
+commandsCompleted = 0
 
+for fileName,findString,replaceString in commandList:
+  commandsAttempted = commandsAttempted + 1
 
+  # Read the file
+  filePath = findPath(fileName)
+  if (filePath == None):
+    continue
+  with open(filePath) as fileObject:
+    moddedLines = fileObject.readlines()
 
-gamePath = findPath('**/game.compiled.js')
-langPath = findPath('**/gui.en_US.json')
+  # Find and replace lines
+  foundIt = False
+  findStringEscaped = re.escape(findString)
+  for i, line in enumerate(moddedLines):
+    if findString in line:
+      moddedLines[i] = re.sub(findStringEscaped,replaceString,line)
+      foundIt = True
+      break
+    elif replaceString in line:
+      foundRep = True
 
-if (gamePath == None or langPath == None):
-    print("Game files not found, please run this from the game\'s install directory")
-    quit()
+  if foundIt:
+    # keep the original file as a backup
+    if (os.access(filePath+".backup", os.F_OK)):
+      i = 0
+      while (os.access(filePath+".backup"+str(i), os.F_OK)):
+        i += 1
+      os.rename(filePath, filePath+".backup"+str(i))
+    else:
+      os.rename(filePath, filePath+".backup")
+    # replace it with the modified file
+    with open(filePath, 'w') as moddedFile:
+      for line in moddedLines:
+        moddedFile.write(line)
+    commandsCompleted = commandsCompleted + 1
 
-with open(gamePath) as gameFile:
-  moddedLines = gameFile.readlines()
-findString = ":a=c*2;b=d*2;break;"
-findStringEscaped = re.escape(findString)
-replaceString = r":a=Math.floor(Math.min(f/d,b/c));a=a<1?1:a;b=d*a;a=c*a;break;"
-foundIt = False
-foundRep = False
-for i, line in enumerate(moddedLines):
-  if findString in line:
-    foundIt = True
-    moddedLines[i] = re.sub(findStringEscaped,replaceString,line)
-    break
-  elif replaceString in line:
-    foundRep = True
-
-if foundIt:
-  # keep the original file as a backup
-  if (os.access(gamePath+".backup", os.F_OK)):
-    i = 0
-    while (os.access(gamePath+".backup"+str(i), os.F_OK)):
-      i += 1
-    os.rename(gamePath, gamePath+".backup"+str(i))
-  else:
-    os.rename(gamePath, gamePath+".backup")
-  # replace it with the modified file
-  with open('game.compiled.js', 'w') as moddedFile:
-    for line in moddedLines:
-      moddedFile.write(line)
-  print("Files modified successfully!")
+if commandsCompleted == commandsAttempted:
+  print("Files modified successfully :)")
+elif commandsCompleted > 0:
+  print("Mod was only partially applied, some of the target code was missing or already changed.")
 elif foundRep:
-  print("Failed to apply mod, Looks like it was already applied!")
+  print("Failed to apply mod, Looks like it may have already been applied.")
 else:
-  print("Failed to apply mod, couldn't find what we were supposed to replace :(")
+  print("Failed to apply mod, couldn't find the code to be modified :(")
